@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIPE Vehicle Search</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; color: #1a1a19; min-height: 100vh; padding: 2rem 1rem; }
+    .app { max-width: 680px; margin: 0 auto; }
+    .header { margin-bottom: 1.5rem; }
+    .header h1 { font-size: 28px; font-weight: 800; color: #1a1a19; }
+    .header p { font-size: 15px; color: #6b6b68; margin-top: 4px; }
+    .step-bar { display: flex; gap: 10px; margin-bottom: 1.5rem; }
+    .step { flex: 1; height: 5px; background: #d3d1c7; border-radius: 2px; transition: background 0.3s; }
+    .step.active { background: #4f11a1; }
+    .step.done { background: #903edd; }
+    .card { background: #fff; border: 0.5px solid rgba(0,0,0,0.12); border-radius: 15px; padding: 1.25rem; margin-bottom: 1rem; }
+    .section-label { font-size: 12px; font-weight: 500; color: #6b6b68; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
+    .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .type-btn { border: 5px solid rgba(0,0,0,0.2); border-radius: 10px; padding: 1rem; cursor: pointer; background: #fff; color: #1a1a19; font-size: 14px; font-weight: 500; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .type-btn:hover { background: #f5f5f3; }
+    .type-btn.selected { border-color: #431b77; background: #ede6fb; color: #7353bd; }
+    .type-icon { font-size: 28px; }
+
+    /* ── lista de marcas/modelos ── */
+    .list-box { max-height: 260px; overflow-y: auto; border: 0.5px solid rgba(0,0,0,0.12); border-radius: 8px; }
+    .list-item { padding: 10px 14px; cursor: pointer; font-size: 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 0.5px solid rgba(0,0,0,0.08); color: #1a1a19; transition: background 0.1s; }
+    .list-item:last-child { border-bottom: none; }
+    .list-item:hover { background: #f0eafa; }
+    .list-item.brand.selected { background: #ede6fb; color: #4f11a1; }
+    .list-item.model.selected { background: #EAF3DE; color: #3B6D11; }
+    .list-item .code { font-size: 12px; color: #6b6b68; font-family: 'Courier New', monospace; flex-shrink: 0; margin-left: 8px; }
+
+    /* ── campo de busca ── */
+    .search-wrap { position: relative; margin-bottom: 10px; }
+    .search-wrap input { padding: 9px 12px 9px 36px; border: 1.5px solid rgba(0,0,0,0.18); border-radius: 8px; font-size: 14px; background: #fff; color: #1a1a19; width: 100%; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+    .search-wrap input:focus { border-color: #7353bd; box-shadow: 0 0 0 3px rgba(115,83,189,0.15); }
+    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #999; pointer-events: none; }
+
+    .vehicle-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.12); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .vehicle-year { font-size: 20px; font-weight: 500; color: #1a1a19; }
+    .vehicle-price { font-size: 18px; font-weight: 500; color: #4f11a1; }
+    .vehicle-price-label { font-size: 11px; color: #6b6b68; text-align: right; }
+    .fuel-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 8px; background: #EAF3DE; color: #3B6D11; margin-top: 4px; }
+    .fuel-badge.eletrico { background: #E6F1FB; color: #185FA5; }
+    .fuel-badge.flex { background: #FAEEDA; color: #854F0B; }
+    .fuel-badge.gasolina { background: #FAECE7; color: #993C1D; }
+    .fuel-badge.diesel { background: #f1efe8; color: #5f5e5a; }
+    .empty, .loading { text-align: center; padding: 2rem; color: #6b6b68; font-size: 14px; }
+    .error-box { text-align: center; padding: 1.5rem; color: #993C1D; background: #FAECE7; border-radius: 8px; font-size: 14px; line-height: 1.6; }
+    .back-btn { font-size: 13px; color: #6b6b68; cursor: pointer; margin-bottom: 1rem; display: inline-flex; align-items: center; gap: 4px; border: none; background: none; }
+    .back-btn:hover { color: #4f11a1; }
+    .summary-bar { background: #f5f5f3; border-radius: 8px; padding: 10px 14px; margin-bottom: 1rem; font-size: 13px; color: #6b6b68; display: flex; gap: 16px; flex-wrap: wrap; }
+    .summary-bar span { color: #4f11a1; font-weight: 600; }
+    .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .results-count { font-size: 13px; color: #6b6b68; }
+    .sort-select { font-size: 13px; border: 0.5px solid rgba(0,0,0,0.2); border-radius: 8px; padding: 4px 8px; background: #fff; color: #1a1a19; }
+    .hidden { display: none; }
+
+    @media (prefers-color-scheme: dark) {
+      body { background: #161414; color: #f1efe8; }
+      .header h1 { color: #f1efe8; }
+      .header p, .section-label, .results-count { color: #fffffd; }
+      .card { background: #3c2561; border-color: rgba(255,255,255,0.1); }
+      .type-btn { background: #805abd; color: #fcfcfc; border-color: rgba(124,48,196,0.678); }
+      .type-btn:hover { background: #6c128a94; }
+      .type-btn.selected { background: #5a2a90; color: #e0cfff; border-color: #c084fc; }
+      .list-box { border-color: rgba(255,255,255,0.1); }
+      .list-item { color: #f1efe8; border-color: rgba(255,255,255,0.06); background: #2a1a40; }
+      .list-item:hover { background: #3d2260; }
+      .list-item.brand.selected { background: #4f11a1; color: #e0cfff; }
+      .list-item.model.selected { background: #173404; color: #C0DD97; }
+      .list-item .code { color: #aaa; }
+      .search-wrap input { background: #2a1a40; border-color: rgba(255,255,255,0.2); color: #f1efe8; }
+      .search-wrap input:focus { border-color: #c084fc; box-shadow: 0 0 0 3px rgba(192,132,252,0.2); }
+      .search-icon { color: #aaa; }
+      .vehicle-card { background: #2c2c2a; border-color: rgba(255,255,255,0.1); }
+      .vehicle-year { color: #f1efe8; }
+      .vehicle-price { color: #c084fc; }
+      .vehicle-price-label { color: #888780; }
+      .summary-bar { background: #2a1a40; color: #aaa; }
+      .summary-bar span { color: #c084fc; }
+      .sort-select { background: #2a1a40; border-color: rgba(255,255,255,0.15); color: #f1efe8; }
+      .back-btn { color: #aaa; }
+      .back-btn:hover { color: #c084fc; }
+      .loading, .empty { color: #888780; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>FIPE Vehicle Search</h1>
+    <p>Find prices based on the FIPE table!</p>
+  </div>
+
+  <div class="step-bar">
+    <div class="step active" id="s1"></div>
+    <div class="step" id="s2"></div>
+    <div class="step" id="s3"></div>
+    <div class="step" id="s4"></div>
+  </div>
+
+  <!-- Step 1: Vehicle type -->
+  <div id="step1">
+    <div class="card">
+      <div class="section-label">Select Vehicle Type:</div>
+      <div class="type-grid">
+        <button class="type-btn" onclick="selectType('carros','Car',this)">
+          <span class="type-icon">
+            <svg width="40" height="20" viewBox="0 0 300 120">
+              <rect x="20" y="50" width="260" height="40" fill="currentColor" rx="20"/>
+              <rect x="80" y="20" width="140" height="40" fill="currentColor" rx="20"/>
+              <circle cx="80" cy="100" r="25" fill="currentColor"/>
+              <circle cx="220" cy="100" r="25" fill="currentColor"/>
+            </svg>
+          </span>
+          Car
+        </button>
+        <button class="type-btn" onclick="selectType('motos','Motorcycle',this)">
+          <span class="type-icon">
+            <svg width="40" height="20" viewBox="0 0 300 120">
+              <circle cx="80" cy="100" r="25" fill="currentColor"/>
+              <circle cx="220" cy="100" r="25" fill="currentColor"/>
+              <rect x="110" y="70" width="80" height="20" fill="currentColor" rx="10"/>
+              <rect x="170" y="50" width="40" height="10" fill="currentColor" rx="5"/>
+              <rect x="100" y="55" width="40" height="10" fill="currentColor" rx="5"/>
+            </svg>
+          </span>
+          Motorcycle
+        </button>
+        <button class="type-btn" onclick="selectType('caminhoes','Truck',this)">
+          <span class="type-icon">
+            <svg width="40" height="20" viewBox="0 0 300 120">
+              <rect x="20" y="50" width="160" height="40" fill="currentColor" rx="10"/>
+              <rect x="180" y="60" width="80" height="30" fill="currentColor" rx="10"/>
+              <circle cx="80" cy="100" r="25" fill="currentColor"/>
+              <circle cx="200" cy="100" r="25" fill="currentColor"/>
+            </svg>
+          </span>
+          Truck
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Brand -->
+  <div id="step2" class="hidden">
+    <button class="back-btn" onclick="goBack(1)">&#8592; Back</button>
+    <div class="card">
+      <div class="section-label">Select brand</div>
+      <div class="search-wrap">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="brandSearch" placeholder="Type to search brands..." oninput="filterBrands()">
+      </div>
+      <div class="list-box" id="brandList"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- Step 3: Model -->
+  <div id="step3" class="hidden">
+    <button class="back-btn" onclick="goBack(2)">&#8592; Back</button>
+    <div class="summary-bar" id="summaryBrand"></div>
+    <div class="card">
+      <div class="section-label">Select model</div>
+      <div class="search-wrap">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="modelSearch" placeholder="Type to search models..." oninput="filterModels()">
+      </div>
+      <div class="list-box" id="modelList"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- Step 4: Results -->
+  <div id="step4" class="hidden">
+    <button class="back-btn" onclick="goBack(3)">&#8592; Back</button>
+    <div class="summary-bar" id="summaryModel"></div>
+    <div class="results-header">
+      <span class="results-count" id="resultsCount"></span>
+      <select class="sort-select" onchange="sortVehicles(this.value)">
+        <option value="year-desc">Newest first</option>
+        <option value="year-asc">Oldest first</option>
+        <option value="price-asc">Lowest price</option>
+        <option value="price-desc">Highest price</option>
+      </select>
+    </div>
+    <div id="vehicleList"><div class="loading">Loading prices...</div></div>
+  </div>
+</div>
+
+<script>
+  const BACKEND = 'http://localhost:8080/api';
+
+  let state = {
+    tipo: '', typeName: '',
+    codigoMarca: '', brandName: '',
+    codigoModelo: '', modelName: '',
+    brands: [], models: [], vehicles: []
+  };
+
+  function setStep(n) {
+    [1, 2, 3, 4].forEach(i => {
+      document.getElementById('step' + i).classList.toggle('hidden', i !== n);
+      const dot = document.getElementById('s' + i);
+      dot.classList.remove('active', 'done');
+      if (i < n) dot.classList.add('done');
+      else if (i === n) dot.classList.add('active');
+    });
+  }
+
+  function goBack(n) { setStep(n); }
+
+  function showError(containerId, msg) {
+    document.getElementById(containerId).innerHTML =
+      `<div class="error-box">Could not connect to the backend.<br>
+       <small>${msg}</small><br><br>
+       <small>Make sure your Spring Boot app is running on port 8080.</small></div>`;
+  }
+
+  function parsePriceBR(str) {
+    if (!str) return 0;
+    return parseFloat(str.replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
+  }
+
+  function fuelClass(fuel) {
+    if (!fuel) return '';
+    const f = fuel.toLowerCase();
+    if (f.includes('elét') || f.includes('elet')) return 'eletrico';
+    if (f.includes('flex')) return 'flex';
+    if (f.includes('gas')) return 'gasolina';
+    if (f.includes('dies')) return 'diesel';
+    return '';
+  }
+
+  // ── Filtros ──────────────────────────────────────────────────────────────────
+  function filterBrands() {
+    const q = document.getElementById('brandSearch').value.toLowerCase();
+    const filtered = state.brands.filter(b => b.nome.toLowerCase().includes(q));
+    renderList('brandList', filtered, 'brand');
+  }
+
+  function filterModels() {
+    const q = document.getElementById('modelSearch').value.toLowerCase();
+    const filtered = state.models.filter(m => m.nome.toLowerCase().includes(q));
+    renderList('modelList', filtered, 'model');
+  }
+
+  // ── Step 1 ───────────────────────────────────────────────────────────────────
+  async function selectType(tipo, name, el) {
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    state.tipo = tipo;
+    state.typeName = name;
+    setStep(2);
+    document.getElementById('brandSearch').value = '';
+    document.getElementById('brandList').innerHTML = '<div class="loading">Loading brands...</div>';
+    try {
+      const res = await fetch(`${BACKEND}/marcas?tipo=${tipo}`);
+      if (!res.ok) throw new Error('Status ' + res.status);
+      const data = await res.json();
+      state.brands = data.sort((a, b) => a.nome.localeCompare(b.nome));
+      renderList('brandList', state.brands, 'brand');
+    } catch (e) {
+      showError('brandList', e.message);
+    }
+  }
+
+  // ── Step 2 ───────────────────────────────────────────────────────────────────
+  async function selectBrand(codigo, nome) {
+    state.codigoMarca = codigo;
+    state.brandName = nome;
+    setStep(3);
+    document.getElementById('summaryBrand').innerHTML =
+      `Type: <span>${state.typeName}</span> &nbsp;|&nbsp; Brand: <span>${nome}</span>`;
+    document.getElementById('modelSearch').value = '';
+    document.getElementById('modelList').innerHTML = '<div class="loading">Loading models...</div>';
+    try {
+      const res = await fetch(`${BACKEND}/modelos?tipo=${state.tipo}&codigoMarca=${codigo}`);
+      if (!res.ok) throw new Error('Status ' + res.status);
+      const data = await res.json();
+      state.models = data.sort((a, b) => a.nome.localeCompare(b.nome));
+      renderList('modelList', state.models, 'model');
+    } catch (e) {
+      showError('modelList', e.message);
+    }
+  }
+
+  // ── Step 3 ───────────────────────────────────────────────────────────────────
+  async function selectModel(codigo, nome) {
+    state.codigoModelo = codigo;
+    state.modelName = nome;
+    setStep(4);
+    document.getElementById('summaryModel').innerHTML =
+      `Brand: <span>${state.brandName}</span> &nbsp;|&nbsp; Model: <span>${nome}</span>`;
+    document.getElementById('vehicleList').innerHTML =
+      '<div class="loading">Fetching prices for all years...</div>';
+    try {
+      const res = await fetch(
+        `${BACKEND}/veiculos?tipo=${state.tipo}&codigoMarca=${state.codigoMarca}&codigoModelo=${codigo}`
+      );
+      if (!res.ok) throw new Error('Status ' + res.status);
+      state.vehicles = await res.json();
+      renderVehicles(state.vehicles);
+    } catch (e) {
+      showError('vehicleList', e.message);
+    }
+  }
+
+  // ── Renderização ─────────────────────────────────────────────────────────────
+  function renderList(containerId, items, kind) {
+    if (!items.length) {
+      document.getElementById(containerId).innerHTML = '<div class="empty">No results found.</div>';
+      return;
+    }
+    const fn = kind === 'brand'
+      ? item => `selectBrand('${item.codigo}', '${item.nome.replace(/'/g, "\\'")}')`
+      : item => `selectModel('${item.codigo}', '${item.nome.replace(/'/g, "\\'")}')`;
+
+    document.getElementById(containerId).innerHTML = items.map(item => `
+      <div class="list-item ${kind}" onclick="${fn(item)}">
+        <span>${item.nome}</span>
+        <span class="code">${item.codigo}</span>
+      </div>`).join('');
+  }
+
+  function renderVehicles(vehicles) {
+    document.getElementById('resultsCount').textContent =
+      vehicles.length + ' result' + (vehicles.length !== 1 ? 's' : '');
+    if (!vehicles.length) {
+      document.getElementById('vehicleList').innerHTML = '<div class="empty">No results found.</div>';
+      return;
+    }
+    document.getElementById('vehicleList').innerHTML = vehicles.map(v => {
+      const year  = v.AnoModelo   || v.ano            || '—';
+      const price = v.Valor       || v.valor           || '—';
+      const fuel  = v.Combustivel || v.tipoCombustivel || '—';
+      const fc    = fuelClass(fuel);
+      return `
+        <div class="vehicle-card">
+          <div>
+            <div class="vehicle-year">${year}</div>
+            <span class="fuel-badge ${fc}">${fuel}</span>
+          </div>
+          <div style="text-align:right;">
+            <div class="vehicle-price-label">FIPE price</div>
+            <div class="vehicle-price">${price}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function sortVehicles(by) {
+    const sorted = [...state.vehicles];
+    const year  = v => v.AnoModelo || v.ano || 0;
+    const price = v => parsePriceBR(v.Valor || v.valor);
+    if (by === 'year-desc')  sorted.sort((a, b) => year(b)  - year(a));
+    if (by === 'year-asc')   sorted.sort((a, b) => year(a)  - year(b));
+    if (by === 'price-asc')  sorted.sort((a, b) => price(a) - price(b));
+    if (by === 'price-desc') sorted.sort((a, b) => price(b) - price(a));
+    renderVehicles(sorted);
+  }
+</script>
+</body>
+</html>
